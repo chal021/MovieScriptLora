@@ -30,6 +30,13 @@ Relevant hard-won context from the sibling project, since it shapes what
   finish -- a shot clamped to the bare `MIN_SHOT_SECONDS` floor (4.0s) with
   a full spoken line in it was empirically confirmed to cut off the last
   word on a real render.
+  **Update 2026-11-03:** that cutoff was probably caused, at least partly, by a
+  pipeline bug since fixed in the sibling project (image `v86`): every
+  shot came out ~11% short, and `-shortest` trimmed the audio to match. See
+  `Comfyui-ClaudeBuild/docs/investigation_shot_duration_shortfall.md`. The
+  1.5s dialogue margin was chosen before the fix. Re-measure it on fixed
+  renders (silence remaining after each shot's last word) before keeping or
+  shrinking it, and change it in every example at once.
 - A shot's label/description text (anything outside a `<d>...</d>` tag) must
   never be phrased as something a character could plausibly say in first
   person -- a label like "Im Done Talking" got mistakenly vocalized by the
@@ -137,8 +144,100 @@ Working through these in order; each builds on the last.
    feeding the sibling project's existing `Shot`/`ScriptDoc` ->
    `render_shot_prompt()` path.
 
+## Dataset layout (module 4, in progress)
+
+- `dataset/system_prompt.txt` -- the fixed instruction given with every
+  example (and later at inference time, so it must stay identical).
+- `dataset/examples/NNN_name/script.txt` + `breakdown.json` -- one
+  hand-written example per folder, kept as readable files.
+- `dataset/build_jsonl.py` -- validates every example (durations 4-14s,
+  `<d>[Language] ...</d>` format, schema keys) and packs them into
+  `dataset/train.jsonl` in the chat `messages` format SFTTrainer reads.
+  The assistant target is compact single-line JSON.
+- `001_lighthouse` is the template example, written together.
+- `dataset/action_timings.csv` -- **the master timing cheat sheet**: one
+  number per action (category, action, seconds, status, notes). Status is
+  `measured` once a real render confirms a value, otherwise `working`.
+- `dataset/ACTION_TIMINGS.md` -- the duration formula and timing rules,
+  plus a history of every action timed so far. It points to the CSV for
+  the actual times and doesn't repeat them.
+
+### Official input format (decided 2026-11-03)
+
+Every script the LoRA sees, both each example's `script.txt` and real
+scripts at inference time, comes out of **`tools/pdf_to_script.py`**:
+1. `pdftotext -layout` (ships with Git for Windows). This keeps screenplay
+   indentation: character names on their own line, dialogue indented. Plain
+   extraction was rejected because it merges the speaker's name into the
+   line ("CARMEN I don't understand..."). Copy-paste was rejected because
+   it drops indentation and silently deletes characters the font maps
+   wrongly.
+2. Deterministic character fixes (code, not learned): soft hyphen U+00AD ->
+   em dash, or "-" between letters; Greek question mark U+037E -> ";";
+   U+00AB -> "'"; curly apostrophe -> "'"; ellipsis character -> "...".
+   (Found in the Pan's Labyrinth PDF: 536 dashes alone. A pasted
+   `Water just a bit of water` was really `Water— just a bit of water—`.)
+3. Form feeds -> newlines, trailing spaces stripped, 3+ blank lines -> 1.
+
+`--start`/`--end` cut an excerpt by text on its first and last lines.
+002 and 003 were re-extracted with it. Their breakdowns didn't change.
+New dialogue rule: **dashes in dialogue become commas or periods** inside
+`<d>`, the same as ellipses (dashes mark pauses).
+A real pipeline will need this run once on the whole script before
+chunking; other PDFs may have different bad characters, so scan each new
+PDF's non-ASCII characters before trusting it.
+
+Pacing convention used in the template: roughly 2.5 spoken words/second,
+plus time for the action in the shot, plus at least 1.5s of margin after the
+last word. Each dialogue line is followed by a short physical action so the
+character visibly stops talking.
+
+The base model is still Qwen. Before Module 5, decide between
+Qwen2.5-7B-Instruct and a newer Qwen release. The dataset format above is
+the same for any Qwen chat model, so that choice doesn't block module 4.
+
+## Planned later: character description task
+
+User idea (2026-10-31): a third pipeline function that reads a script's
+character descriptions and outputs a one-line description per character, to
+feed an image generator for character consistency (the sibling pipeline
+already supports character reference images).
+
+Leaning toward: a second task in the **same** LoRA, chosen by a different
+fixed system prompt (multi-task fine-tuning). The breakdown schema stays
+unchanged. Each example folder later gets a `characters.json` next to
+`breakdown.json`, reusing the same `script.txt`, and `build_jsonl.py` emits
+one training row per task. Still to decide: should the model use only what
+the script states, or fill in plausible details (period, clothing) from
+context? Whichever is chosen must be applied consistently in every example.
+Not started; the breakdown task comes first.
+
+Clarified goal (2026-11-02): the model reads the character descriptions in
+the script, and the pipeline uses them to generate character (and location)
+reference images, so characters look the same across shots. Key design
+point: a screenplay describes a character once, at first appearance, often
+far from the scene being broken down (e.g. Ofelia's age, 11, is given
+earlier in the script than the woods excerpt). So the character task must
+read the **whole script** (it fits in Qwen's 128k context; a screenplay is
+roughly 25-40k tokens), not chunks. Planned order:
+1. Character task, run once on the whole script: one-line image prompt per
+   character and location.
+2. Generate the images (sibling client app's Character Generation tab), and
+   save them as `Characters/<Name>.png` / `Locations/<Name>.png`. The file
+   name becomes the subject name, so it must match the script's name exactly.
+3. Breakdown task, chunk by chunk (the current work).
+4. Render with shots plus reference images.
+Facts in a description can come from anywhere in the script. Plausible
+details (era, clothing) may be filled in only where the script supports
+them. Hand-written prompts made for test renders (starting with 003's Part
+A) double as first training examples for this task.
+Lessons from the first image generation: framing (full-body, plain
+background) is a fixed rule appended by code, not learned by the model.
+Use positive wording only, because "no vehicles" put a car in the image.
+Every reference image goes into every shot, so background objects leak.
+
 ## Next step
 
-Module 4: building the training dataset. Start by writing one real example
-together end to end (a partial script -> its correct scene/shot JSON
-breakdown) as a template, before the user writes the rest by hand.
+Module 4: the user writes the next examples by hand, using
+`001_lighthouse` as the template, and runs `python dataset/build_jsonl.py`
+after each one. Still to settle: target count and a plan for variety.

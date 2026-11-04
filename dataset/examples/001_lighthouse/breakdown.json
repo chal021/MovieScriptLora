@@ -1,0 +1,49 @@
+{
+  "scenes": [
+    {
+      "scene_label": "Lighthouse kitchen at night",
+      "shots": [
+        {
+          "label": "",
+          "body": "Rain hammers the windows of a cramped lighthouse kitchen at night. Mara, a weathered woman in her sixties in a wool sweater, sets two chipped mugs on the table. Across from her sits her nephew Theo, in his twenties, still wearing a soaked jacket.",
+          "duration_seconds": 6.0
+        },
+        {
+          "label": "",
+          "body": "Mara studies Theo across the table and says, <d>[English] You came all this way in a storm. Something's wrong.</d> She folds her hands and waits.",
+          "duration_seconds": 6.5
+        },
+        {
+          "label": "",
+          "body": "Theo stares down at the table and says quietly, <d>[English] The bank called. They're taking the house in March.</d> He keeps his eyes lowered.",
+          "duration_seconds": 7.0
+        },
+        {
+          "label": "",
+          "body": "Mara freezes, the kettle tilted halfway over a mug. She sets it down slowly and asks, <d>[English] Your father knew about this?</d> Her jaw tightens.",
+          "duration_seconds": 7.5
+        },
+        {
+          "label": "",
+          "body": "Theo answers, <d>[English] He's known for a year.</d> Neither of them moves. The lighthouse beam sweeps across the rain-streaked window, lighting Mara's face for an instant.",
+          "duration_seconds": 8.0
+        }
+      ]
+    },
+    {
+      "scene_label": "Cliff path at night",
+      "shots": [
+        {
+          "label": "",
+          "body": "On a cliff path in a storm at night, Mara pushes into the wind with a lantern in hand. Theo stumbles after her and shouts over the gale, <d>[English] Aunt Mara! Where are you going?</d> He wipes rain from his eyes.",
+          "duration_seconds": 7.0
+        },
+        {
+          "label": "",
+          "body": "Mara answers without turning around, <d>[English] To talk to your father. Tonight.</d> She keeps walking, and the lantern bobs away into the dark.",
+          "duration_seconds": 7.5
+        }
+      ]
+    }
+  ]
+}

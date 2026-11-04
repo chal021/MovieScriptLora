@@ -1,0 +1,10 @@
+# Examples built from published, copyrighted screenplays stay local.
+# Never push their text to GitHub. Add one line per such example folder.
+dataset/examples/002_pans_labyrinth/
+dataset/examples/003_pans_labyrinth_woods/
+
+# Generated from the examples (so it contains their script text too).
+# Rebuild it with: python dataset/build_jsonl.py
+dataset/train.jsonl
+
+__pycache__/
