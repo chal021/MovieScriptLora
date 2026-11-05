@@ -1,28 +1,31 @@
 category,action,seconds,status,notes
 Formula,Speech (words inside <d> tags),0.4 per word,working,spoken words / 2.5
-Formula,Margin after last line of dialogue,1.5,working,Only if the shot has dialogue. Re-check on fixed pipeline (v86+)
+Formula,Speech (syllables inside <d> tags),0.29 per syllable,candidate,spoken syllables / 3.5. Test against words on fixed renders; words stays the rule until then
+Formula,Margin after last line of dialogue,1.5,working,Only if the shot has dialogue. Re-check on fixed pipeline (v87+)
+Formula,Comma inside <d> tags,0.25,working,"Every comma inside <d> tags, counted the same. Commas in body text are not pauses"
+Formula,Sentence end mid-line (. ? ! inside <d> with more speech after it),0.5,working,The line's last . ? ! doesn't count; the margin covers it
 Formula,Simultaneous action (as / while / at the same time),0,rule,Count only the longest overlapping action
-Small movements,"Glance, look at, look away",1.0,working,
-Small movements,"Nod, shake head",1.0,working,
-Small movements,"Facial reaction (face tightens, smiles, frowns, jaw tightens)",1.0,working,
-Small movements,"Hand gesture (raise a hand, point, wave)",1.0,working,
-Small movements,"Touch someone (shoulder, arm, face)",1.0,working,
-Small movements,"Touch self (grab abdomen, hand to mouth, rub eyes)",1.0,working,
-Small movements,Turn head or body toward or away from someone,1.0,working,
+Small movements,"Glance, look at, look away",1,working,
+Small movements,"Nod, shake head",1,working,
+Small movements,"Facial reaction (face tightens, smiles, frowns, jaw tightens)",1,working,
+Small movements,"Hand gesture (raise a hand, point, wave)",1,working,
+Small movements,"Touch someone (shoulder, arm, face)",1,working,
+Small movements,"Touch self (grab abdomen, hand to mouth, rub eyes)",1,working,
+Small movements,Turn head or body toward or away from someone,1,working,
 Small movements,"Wake up (eyes open, stir)",1.5,working,
-Body and objects,"Pick up, put down, or hand over an object",2.0,working,
-Body and objects,Take something from someone,2.0,working,
-Body and objects,"Open or close a door, knock",2.0,working,
-Body and objects,Climb in or out of a car,2.0,working,
-Body and objects,Sit down or stand up,2.0,working,
-Body and objects,"Bend over, brace, hold a physical strain",3.0,working,
+Body and objects,"Pick up, put down, or hand over an object",2,working,
+Body and objects,Take something from someone,2,working,
+Body and objects,"Open or close a door, knock",2,working,
+Body and objects,Climb in or out of a car,2,working,
+Body and objects,Sit down or stand up,2,working,
+Body and objects,"Bend over, brace, hold a physical strain",3,working,
 Moving through space,Walk a few steps / walk up to someone nearby,3.5,measured,"003 shot 5 render 1: budgeted 1.0s, took ~3.5s"
 Moving through space,Walk across the frame / from mid-distance,3.5,measured,Check previous shot's last frame for distance
-Moving through space,Walk in from far away / enter from out of frame,5.0,working,
+Moving through space,Walk in from far away / enter from out of frame,5,working,
 Moving through space,Run a short distance,2.5,working,
 Camera,Establish a new place (first shot of a scene),3.5,working,
-Camera,"Camera move: push in, pull back, move around to a face",2.0,working,
+Camera,"Camera move: push in, pull back, move around to a face",2,working,
 Camera,Camera move overlapping an action or line (as she says),0,working,Overlaps; no extra time
-Camera,Camera survey / pan across a place,5.0,working,
-Things moving on their own,"Slow creature or object movement (crawls, drifts, sweeps)",4.0,working,
-Things moving on their own,Vehicle stops or pulls away,2.0,working,
+Camera,Camera survey / pan across a place,5,working,
+Things moving on their own,"Slow creature or object movement (crawls, drifts, sweeps)",4,working,
+Things moving on their own,Vehicle stops or pulls away,2,working,

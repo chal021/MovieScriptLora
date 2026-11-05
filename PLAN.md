@@ -31,7 +31,8 @@ Relevant hard-won context from the sibling project, since it shapes what
   a full spoken line in it was empirically confirmed to cut off the last
   word on a real render.
   **Update 2026-11-03:** that cutoff was probably caused, at least partly, by a
-  pipeline bug since fixed in the sibling project (image `v86`): every
+  pipeline bug since fixed in the sibling project (image `v87`; `v86` had
+  a grid-artifact regression): every
   shot came out ~11% short, and `-shortest` trimmed the audio to match. See
   `Comfyui-ClaudeBuild/docs/investigation_shot_duration_shortfall.md`. The
   1.5s dialogue margin was chosen before the fix. Re-measure it on fixed
@@ -144,17 +145,76 @@ Working through these in order; each builds on the last.
    feeding the sibling project's existing `Shot`/`ScriptDoc` ->
    `render_shot_prompt()` path.
 
+## The full system (decided 2026-11-04)
+
+Input: a whole screenplay (PDF -> `tools/pdf_to_script.py`). Output: an
+organized project folder, ready to render. One LoRA, three tasks, each
+chosen by its own fixed system prompt (multi-task fine-tuning):
+
+| Task | Reads | Writes | Built/trained |
+|---|---|---|---|
+| 1. Shots | one scene's text + a header naming its characters and locations | that scene's shots: `location`, body, `duration_seconds` | first |
+| 2. Scenes | the whole script | the scene list, in order (label, `starts_with`, characters, locations) | second |
+| 3. Characters | the whole script | the roster: canonical name, aliases, one-line image prompt (characters and locations) | third |
+
+Run order is the reverse (3 -> 2 -> 1): names and reference images must
+exist before shots can use them.
+
+Decisions:
+- **The LoRA generates the timings** (`duration_seconds`). That's the main
+  learning value. Code only *checks* them (4-14s, dialogue floor). It doesn't
+  calculate them. (An "action time only" variant was considered and dropped.)
+- **The LoRA writes shot bodies, not full H3 prompts.** The sibling's
+  `render_shot_prompt()` wraps each body in the six-section H3 prompt. Code
+  also writes the `[N seconds]` text format from the JSON.
+- **Numbering (`Scene01`, `Shot01`) is added by code**, never generated.
+- **Model output is JSON** (parseable, checkable). Code turns it into
+  `Scene01.txt` (sibling format) and the folder layout.
+- **Task 1 input header:** every Task 1 user message starts with
+  `Characters: ...` and `Locations: ...` lines (canonical roster names),
+  then the scene text. Shots must use those canonical names, because the
+  pipeline attaches a character's image only to shots that name them.
+- **Scenes follow the script's headings.** A location change with no new
+  heading is a camera move inside the scene, so a scene can have several
+  locations. Each shot carries a **`location` field** (exact location image
+  name), and the transition happens on screen inside a shot (end on a frame
+  that works in both places, such as black). The Task 1 header lists
+  `Locations:` (plural). Sibling plan:
+  `Comfyui-ClaudeBuild/docs/plan_scene_level_references.md` (per-shot
+  location filtering, per-shot reference limits on the server, scene
+  planning in the client).
+- **Assembler (Module 9, code):** writes `characters.json`,
+  `Characters/` + `Locations/` images, `scenes.json`, and one folder per
+  scene with `script.txt`, `shots.json`, and `SceneNN.txt`.
+- **Dataset restarts from scratch** with whole scripts, starting at
+  Pan's Labyrinth Scene01 / Shot01. Each script supplies examples for all
+  three tasks.
+
 ## Dataset layout (module 4, in progress)
 
-- `dataset/system_prompt.txt` -- the fixed instruction given with every
-  example (and later at inference time, so it must stay identical).
-- `dataset/examples/NNN_name/script.txt` + `breakdown.json` -- one
-  hand-written example per folder, kept as readable files.
-- `dataset/build_jsonl.py` -- validates every example (durations 4-14s,
-  `<d>[Language] ...</d>` format, schema keys) and packs them into
-  `dataset/train.jsonl` in the chat `messages` format SFTTrainer reads.
-  The assistant target is compact single-line JSON.
-- `001_lighthouse` is the template example, written together.
+- `dataset/scripts/<name>/` -- one whole screenplay per folder (gitignored
+  by default, since published scripts are copyrighted):
+  - `script.txt` -- the whole script, from `tools/pdf_to_script.py`
+  - `scenes.json` -- Task 2 target: `{"complete": false, "scenes": [...]}`,
+    each scene `{label, starts_with, characters, locations}`
+  - `characters.json` -- Task 3 target: `{"characters": [...], "locations": [...]}`
+    (entry format still to be settled)
+  - `shots/SceneNN.json` -- Task 1 target for scene NN: `{"shots": [...]}`,
+    each shot `{label, location, body, duration_seconds}`
+- You write only targets. `dataset/build_jsonl.py` builds the inputs: the
+  Task 1 header plus the scene text cut from `script.txt` (from the scene's
+  `starts_with` to the next listed scene, or the next heading). Task 2 rows
+  are built only once `scenes.json` says `"complete": true`. It validates
+  everything (schema keys, 4-14s, `<d>` format, dialogue floor, no pronoun
+  at the start of a shot, location in the scene's list) and writes
+  `dataset/train.jsonl` (chat `messages` format; compact JSON targets).
+- `dataset/prompts/<task>.txt` -- one fixed system prompt per task
+  (`shots.txt` now; `scenes.txt` and `characters.txt` later). Must stay
+  identical between training and inference.
+- `dataset/STYLE_GUIDE.md` -- the rules for writing targets.
+- `dataset/archive/` -- the earlier excerpt examples (001 lighthouse, 002
+  car, 003 woods) and their worksheets, kept for reference. The car and
+  woods shots get reused when we reach those scenes.
 - `dataset/action_timings.csv` -- **the master timing cheat sheet**: one
   number per action (category, action, seconds, status, notes). Status is
   `measured` once a real render confirms a value, otherwise `working`.
@@ -236,8 +296,49 @@ background) is a fixed rule appended by code, not learned by the model.
 Use positive wording only, because "no vehicles" put a car in the image.
 Every reference image goes into every shot, so background objects leak.
 
+### Naming rule (the pipeline now filters subjects per shot)
+
+Since the sibling pipeline's per-shot subject filtering
+(`prompt_builder.shot_subject_indices`), a character's reference image goes
+into a shot **only if their name appears in that shot's label or body**,
+dialogue included (case-insensitive, whole word, possessives match).
+Locations always go in. So, in every breakdown:
+- Name every visible character in every shot. An unnamed visible character
+  gets no reference and may morph or vanish.
+- Never open a shot with a pronoun. Use the name.
+- Watch for names inside dialogue: a line like "greet Captain Vidal" pulls
+  Vidal's reference into the shot even if he isn't there. If he has a
+  reference image, describe the shot so that's harmless.
+
+## Waiting on the sibling project (2026-11-05)
+
+The user is building the receiving side in `Comfyui-ClaudeBuild` first, and
+will have it write a project file describing exactly what the pipeline
+needs to receive. **Design the LoRA's output formats (roster, scenes,
+shots) to match that file, once it exists.** Known so far:
+- **Voices:** the sibling has a voice generator. A voice is
+  `Audios/<Name>.wav` + a `.json` file with `"voice_for_subject"`, used as
+  that character's voice timbre. MiniMax allows 3 audios per call.
+- **Narrator** is a voice-only roster entry: no image, always a voice.
+  Other characters get their voices attached by code, through the same
+  canonical names as their images.
+- Sibling gaps found (2026-11-05): audios aren't filtered per shot yet
+  (every voice goes into every shot), and a voice without an image can't be
+  linked (`voice_for_subject` must match an image subject).
+- So the roster format (`characters.json`) will need to say image, voice,
+  or both per entry, and Task 3 will likely write a one-line voice
+  description as well as the image prompt.
+
+Paused mid-lesson: Scene01 is in `scenes.json` (label "The Princess",
+characters ["Ofelia"], locations Labyrinth, Castle, Tower, Well,
+Staircase). Next: group Scene01's 12 beats into shots (location changes,
+the Tower interior, narrator lines vs the 14s ceiling). Narrator to be
+added to Scene01 and the roster once the format is known.
+
 ## Next step
 
-Module 4: the user writes the next examples by hand, using
-`001_lighthouse` as the template, and runs `python dataset/build_jsonl.py`
-after each one. Still to settle: target count and a plan for variety.
+Restart the dataset with whole scripts: Pan's Labyrinth from Scene01 /
+Shot01, using the layout in "The full system". Old examples 001-003 are
+archived for reference (002/003's shots are reused when we reach those
+scenes). Then test-render with image `v87` and measure speech timing
+(words vs syllables per second) and the dialogue margin.

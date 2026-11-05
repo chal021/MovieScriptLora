@@ -11,12 +11,19 @@ to `measured` and note the source in `notes`.
 ## The formula
 
 ```
-duration = spoken words / 2.5  +  action times  +  1.5s margin (if any dialogue)
+duration = speech  +  action times  +  1.5s margin (if any dialogue)
+speech   = words / 2.5  +  0.25 per comma  +  0.5 per mid-line sentence end
 ```
 
-- **Speech:** count only the words inside `<d>` tags, then divide by 2.5.
+- **Speech:** count only what's inside `<d>` tags: the words (divide by 2.5),
+  every comma (0.25s each, all counted the same), and every `.` `?` `!` that
+  has more speech after it (0.5s each). The line's last mark doesn't count,
+  because the margin covers it.
+- **Syllables are a candidate** (syllables / 3.5 instead of words / 2.5).
+  Words stay the rule until fixed renders show which predicts real speech
+  length better.
 - **Margin:** 1.5s after the last line. A shot with no dialogue gets none.
-  (Chosen before the sibling pipeline's duration fix, image `v86`.
+  (Chosen before the sibling pipeline's duration fix, image `v87`.
   Re-check it against fixed renders.)
 - **Sequential** actions ("then", or one after another): add their times.
 - **Simultaneous** actions ("at the same time", "as", "while"): count only
